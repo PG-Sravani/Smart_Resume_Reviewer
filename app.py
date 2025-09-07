@@ -1,30 +1,24 @@
-# app.py
 import streamlit as st
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from utils import extract_text_from_pdf
 from io import BytesIO
-import os
 from dotenv import load_dotenv
 
-# Load environment variables (for OpenAI key if you have one)
+# Load environment variables from .env file
 load_dotenv()
+
+# Optional: load API key (not used here because we use mock)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
-# Try import openai only if API key exists
-openai = None
-if OPENAI_API_KEY:
-    try:
-        import openai as _openai
-        openai = _openai
-        openai.api_key = OPENAI_API_KEY
-    except Exception as e:
-        openai = None
-        st.warning(f"OpenAI library not available: {e}")
-
+# Streamlit page config
 st.set_page_config(page_title="Smart Resume Reviewer", layout="wide")
 st.title("📄 Smart Resume Reviewer")
 
-# Resume Upload/Input
+# Upload PDF resume
 uploaded_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
 resume_text = ""
 
@@ -32,61 +26,62 @@ if uploaded_file is not None:
     bytes_data = uploaded_file.read()
     resume_text = extract_text_from_pdf(bytes_data)
 
+# Manual resume input
 manual_text = st.text_area("Or paste your resume text here", value="", height=200)
 if manual_text.strip():
     resume_text = manual_text
 
+# Job inputs
 job_role = st.text_input("Target job role (e.g., Data Scientist)")
 job_desc = st.text_area("Optional: Job description (paste here)")
 
-def fallback_feedback(resume_text, job_role, job_desc):
+# 🔁 Mock feedback generator based on resume content
+def generate_mock_feedback(resume_text, job_role, job_desc):
     txt = resume_text.lower()
-    bullets = ("-" in resume_text) or ("\n•" in resume_text) or ("\n*" in resume_text)
     feedback = []
-    if "education" in txt:
-        feedback.append("• Education section found.")
+
+    # Simple rule-based checks
+    if "python" in txt:
+        feedback.append("• Good to see Python skills mentioned.")
     else:
-        feedback.append("• Add an Education section.")
-    if "experience" in txt or "company" in txt:
-        feedback.append("• Experience section found.")
+        feedback.append("• Consider adding Python skills if relevant.")
+
+    if "project" in txt:
+        feedback.append("• Projects section helps demonstrate applied skills.")
     else:
-        feedback.append("• Add an Experience section.")
-    if "skills" in txt:
-        feedback.append("• Skills section found.")
+        feedback.append("• Include at least one project to showcase your work.")
+
+    if "intern" in txt or "internship" in txt:
+        feedback.append("• Internship experience adds great value.")
     else:
-        feedback.append("• Add a Skills section.")
-    if not bullets:
-        feedback.append("• Use bullet points for clarity.")
-    words = len(resume_text.split())
-    feedback.append(f"• Resume length: {words} words.")
+        feedback.append("• Try adding relevant internships if any.")
+
+    if "machine learning" in txt:
+        feedback.append("• Machine Learning experience is a strong asset.")
+    else:
+        feedback.append("• If applicable, highlight any ML experience.")
+
+    if len(txt.split()) < 300:
+        feedback.append("• Resume seems a bit short. Consider expanding with more details.")
+    else:
+        feedback.append("• Resume length looks good.")
+
     if job_desc:
-        feedback.append("• Tailor skills/keywords from the job description.")
+        feedback.append("• Make sure to align your resume with the job description.")
+
+    # Final recommendation
+    feedback.append(f"• Tailored feedback for the '{job_role}' role provided.")
+
     return "\n".join(feedback)
 
+# 🟩 Button to trigger feedback
 if st.button("🔍 Review Resume"):
     if not resume_text.strip():
         st.error("Please upload or paste a resume first.")
     elif not job_role.strip():
         st.error("Please enter a target job role.")
     else:
-        if openai is not None:
-            st.info("Contacting AI to generate feedback...")
-            try:
-                response = openai.ChatCompletion.create(
-                    model=OPENAI_MODEL,
-                    messages=[
-                        {"role": "system", "content": "You are an expert career coach."},
-                        {"role": "user", "content": f"Review this resume for {job_role}. Job description: {job_desc}\nResume:\n{resume_text}"}
-                    ],
-                    max_tokens=800,
-                    temperature=0.7
-                )
-                feedback = response["choices"][0]["message"]["content"].strip()
-            except Exception as e:
-                feedback = f"Error calling AI: {e}\n\nUsing fallback...\n" + fallback_feedback(resume_text, job_role, job_desc)
-        else:
-            st.warning("No OpenAI API key found. Using fallback rules.")
-            feedback = fallback_feedback(resume_text, job_role, job_desc)
+        feedback = generate_mock_feedback(resume_text, job_role, job_desc)
 
         st.subheader("📊 Feedback")
         st.write(feedback)
