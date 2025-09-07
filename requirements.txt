@@ -4,3 +4,4 @@ pdfplumber
 PyMuPDF
 langchain
 python-dotenv
+PyPDF2
